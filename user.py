@@ -61,6 +61,6 @@ class User:
 
         # EXAMPLE USAGE OF INVERSE KINEMATICS SOLVER
         #   Inputs: vec3 position, quaternion orientation
-        # self.pose = calcIK(np.array([0.8, 0, 0.4]), np.array([1, 0, 0, 0]))
+        self.pose = calcIK(np.array([0.8, 0, 0.4]), np.array([1, 0, 0, 0]))
 
         return self.pose
