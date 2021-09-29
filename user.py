@@ -11,17 +11,17 @@ from numpy.lib.type_check import imag
 class User:
     def __init__(self) -> None:
         self.pose = {
-            "bravo_axis_a": 0,
+            "bravo_axis_a": math.pi * 0, # max is around 0.25*math.pi
             "bravo_axis_b": 0,
-            "bravo_axis_c": math.pi * 0.5,
-            "bravo_axis_d": math.pi * 0,
-            "bravo_axis_e": math.pi * 0.75,
-            "bravo_axis_f": math.pi * 0.9,
+            "bravo_axis_c": math.pi * 0.25,
+            "bravo_axis_d": math.pi * 1,
+            "bravo_axis_e": math.pi * 1,
+            "bravo_axis_f": math.pi * 1,
             "bravo_axis_g": math.pi
         }
-        self.inc = 0.1
+        self.inc = 0.08
         self.last_time = time.time()
-        self.vert_claw = False
+        self.rove = True
 
         return
 
@@ -128,6 +128,21 @@ class User:
 
         # print(global_poses)
         # print(global_poses['end_effector_joint'][0][0])
+
+
+
+        if self.rove:
+            # self.pose["bravo_axis_g"] += self.inc
+            # if (self.pose["bravo_axis_g"] >= 2 * math.pi):
+            #     self.pose["bravo_axis_g"] -= 4 * math.pi
+            if self.pose["bravo_axis_d"] > 0.5*math.pi:
+                self.inc = -0.08
+            elif self.pose["bravo_axis_d"] < -0.5*math.pi:
+                self.inc = 0.08
+            
+            self.pose["bravo_axis_d"] += self.inc
+
+
 
         #center
         if cv2.waitKey(1) == ord('q'):
