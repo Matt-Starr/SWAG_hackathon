@@ -21,6 +21,7 @@ class User:
         }
         self.inc = 0.1
         self.last_time = time.time()
+        self.vert_claw = False
 
         return
 
@@ -129,9 +130,10 @@ class User:
         # print(global_poses['end_effector_joint'][0][0])
 
         #center
-        if cv2.waitKey(1) == ord('q'):
-            self.pose = calcIK(np.array([0.5, 0, 0]), np.array([0, 1, 0, 1]))
-        
+        if self.vert_claw:
+            self.pose = calcIK(np.array([global_poses['end_effector_joint'][0][0], global_poses['end_effector_joint'][0][1], global_poses['end_effector_joint'][0][2]]), np.array([0, 1, 0, 1]))
+            self.vert_claw = False
+            
         #move on x-y
         if cv2.waitKey(1) == ord('w'):
             self.pose = calcIK(np.array([global_poses['end_effector_joint'][0][0]+0.05, global_poses['end_effector_joint'][0][1], global_poses['end_effector_joint'][0][2]]), np.array([0, 1, 0, 1]))
