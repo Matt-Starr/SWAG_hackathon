@@ -5,6 +5,7 @@ import math
 from typing import Callable, Optional
 import numpy as np
 import cv2
+from numpy.lib.type_check import imag
 
 
 class User:
@@ -51,16 +52,54 @@ class User:
         cv2.waitKey(1)
         
         # THIS IS AN EXAMPLE TO SHOW YOU HOW TO MOVE THE MANIPULATOR
-        if self.pose["bravo_axis_e"] > math.pi:
-            self.inc = -0.1
         
-        if self.pose["bravo_axis_e"] < math.pi * 0.5:
-            self.inc = 0.1
+        # if self.pose["bravo_axis_e"] > math.pi:
+        #     self.inc = -0.1
         
-        self.pose["bravo_axis_e"] += self.inc
+        # if self.pose["bravo_axis_e"] < math.pi * 0.5:
+        #     self.inc = 0.1
+        
+        # self.pose["bravo_axis_e"] += self.inc
 
         # EXAMPLE USAGE OF INVERSE KINEMATICS SOLVER
         #   Inputs: vec3 position, quaternion orientation
-        self.pose = calcIK(np.array([0.8, 0, 0.4]), np.array([1, 0, 0, 0]))
+        #self.pose = calcIK(np.array([0.8, 0, 0.4]), np.array([1, 1, 0, 1]))
+        
+
+
+        lower = [200,200,200]
+        upper = [255,255,255]
+
+        lower = np.array(lower, dtype = "uint8")
+        upper = np.array(upper, dtype = "uint8")
+
+        mask = cv2.inRange(image, lower, upper)
+        output = cv2.bitwise_and(image, image, mask = mask)
+        #output = cv2.bitwise_not(output, output)
+
+        # show the images
+        cv2.imshow("masked", output)
+        
+        # print(global_poses)
+        # print(global_poses['end_effector_joint'][0][0])
+        #center
+        if cv2.waitKey(1) == ord('q'):
+            self.pose = calcIK(np.array([0.5, 0, 0]), np.array([0, 1, 0, 1]))
+            
+        #move on x-y
+        if cv2.waitKey(1) == ord('w'):
+            self.pose = calcIK(np.array([global_poses['end_effector_joint'][0][0]+0.2, global_poses['end_effector_joint'][0][1], global_poses['end_effector_joint'][0][2]]), np.array([0, 1, 0, 1]))
+        if cv2.waitKey(1) == ord('a'):
+            self.pose = calcIK(np.array([global_poses['end_effector_joint'][0][0], global_poses['end_effector_joint'][0][1]+0.1, global_poses['end_effector_joint'][0][2]]), np.array([0, 1, 0, 1]))
+        if cv2.waitKey(1) == ord('s'):
+            self.pose = calcIK(np.array([global_poses['end_effector_joint'][0][0]-0.2, global_poses['end_effector_joint'][0][1], global_poses['end_effector_joint'][0][2]]), np.array([0, 1, 0, 1]))
+        if cv2.waitKey(1) == ord('d'):
+            self.pose = calcIK(np.array([global_poses['end_effector_joint'][0][0], global_poses['end_effector_joint'][0][1]-0.1, global_poses['end_effector_joint'][0][2]]), np.array([0, 1, 0, 1]))
+        
+        #move on z
+        if cv2.waitKey(1) == ord('x'):
+            self.pose = calcIK(np.array([global_poses['end_effector_joint'][0][0], global_poses['end_effector_joint'][0][1], global_poses['end_effector_joint'][0][2]+0.1]), np.array([0, 1, 0, 1]))
+        if cv2.waitKey(1) == ord('z'):
+            self.pose = calcIK(np.array([global_poses['end_effector_joint'][0][0], global_poses['end_effector_joint'][0][1], global_poses['end_effector_joint'][0][2]-0.1]), np.array([0, 1, 0, 1]))
 
         return self.pose
