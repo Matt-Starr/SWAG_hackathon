@@ -7,6 +7,67 @@ import numpy as np
 import cv2
 from numpy.lib.type_check import imag
 
+def get_dist_and_midpoint(image):
+    # define boundaries for the colours we are masking (we want to mask black but should be close to white as we are inverting it)
+    lower = [230,230,230]
+    upper = [255,255,255]
+    lower = np.array(lower, dtype = "uint8")
+    upper = np.array(upper, dtype = "uint8")
+
+    # invert the image and cover up the bottom which contains the timer
+    inverted = cv2.bitwise_not(image, image)
+    cv2.rectangle(inverted,(0,450),(650,480),(255,0,255),thickness=-1)
+
+    # Create the colour mask to only display black parts of the image
+    mask = cv2.inRange(image, lower, upper)
+    aprilTags = cv2.bitwise_and(inverted, inverted, mask = mask)
+    
+    # convert the image to binary image (via grayscale) and find contours in the binary image
+    gray_image = cv2.cvtColor(aprilTags, cv2.COLOR_BGR2GRAY)
+    ret,thresh = cv2.threshold(gray_image,127,255,0)
+    contours, hierarchy = cv2.findContours(thresh,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
+
+    # initialise lists of centroids to display
+    centroids = []
+
+    for c in contours:
+        # Calculate moments for each contour
+        M = cv2.moments(c)
+
+        # Calculate x,y coordinate of each centroid
+        if M["m00"] != 0:
+            cX = int(M["m10"] / M["m00"])
+            cY = int(M["m01"] / M["m00"])
+            
+            # Check if there is already a centroid placed close to the one we intend to place, if there is it is likely that its the same shape so don't include
+            check = False
+            if len(centroids) > 0:
+                for existingCentroid in centroids:
+                    if abs(existingCentroid[0] - cX) < 50 and abs(existingCentroid[1] - cY) < 50:
+                        check = True
+
+            # If we dont find a similarly place centroid add the new centroid to the list and display
+            if check == False:
+                cv2.circle(aprilTags, (cX, cY), 5, (255, 0, 255), -1)
+                positionString = str(cX) + "," + str(cY)
+                cv2.putText(aprilTags, positionString, (cX - 25, cY - 25),cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 255), 2)
+                centroids.append([cX,cY])
+    
+    # Initialise values for these incase we can't determine a line, a negative output should be interpreted as a failure
+    pixelDistance = -1
+    midpoint = -1
+
+    # Calculate distance between centroids in terms of pixels and find the coordinates of the midpoint
+    if len(centroids) == 2:
+        image = cv2.line(aprilTags, centroids[0], centroids[1], (255,0,0), 2)
+        pixelDistance = (abs(centroids[0][0] - centroids[1][0])**2 + abs(centroids[0][1] - centroids[1][1])**2)**(1/2)
+        cv2.putText(aprilTags, f"Distance = {pixelDistance:.2f} pixels", (200,430),cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 255), 2)
+        midpoint = [(centroids[0][0] + centroids[1][0])/2, (centroids[0][1] + centroids[1][1])/2]
+        cv2.circle(aprilTags, (int(midpoint[0]), int(midpoint[1])), 5, (0, 255, 0), -1)
+    cv2.imshow("apriltags", aprilTags)
+
+    return pixelDistance, midpoint
+
 
 class User:
     def __init__(self) -> None:
@@ -52,84 +113,8 @@ class User:
         cv2.imshow("View", image)
         #Image is 480 (height), by 640 (width)
         cv2.waitKey(1)
-        
-        # THIS IS AN EXAMPLE TO SHOW YOU HOW TO MOVE THE MANIPULATOR
-        
-        # if self.pose["bravo_axis_e"] > math.pi:
-        #     self.inc = -0.1
-        
-        # if self.pose["bravo_axis_e"] < math.pi * 0.5:
-        #     self.inc = 0.1
-        
-        # self.pose["bravo_axis_e"] += self.inc
 
-        # EXAMPLE USAGE OF INVERSE KINEMATICS SOLVER
-        #   Inputs: vec3 position, quaternion orientation
-        #self.pose = calcIK(np.array([0.8, 0, 0.4]), np.array([1, 1, 0, 1]))
-
-        lower = [230,230,230]
-        upper = [255,255,255]
-
-        lower = np.array(lower, dtype = "uint8")
-        upper = np.array(upper, dtype = "uint8")
-
-        inverted = cv2.bitwise_not(image, image)
-        cv2.rectangle(inverted,(0,450),(650,480),(255,0,255),thickness=-1)
-
-        mask = cv2.inRange(image, lower, upper)
-        aprilTags = cv2.bitwise_and(inverted, inverted, mask = mask)
-        #output = cv2.bitwise_not(output, output)
-
-        # show the masked image
-        #cv2.imshow("masked", aprilTags)
-        
-        # convert the image to grayscale
-        gray_image = cv2.cvtColor(aprilTags, cv2.COLOR_BGR2GRAY)
-
-        # convert the grayscale image to binary image
-        ret,thresh = cv2.threshold(gray_image,127,255,0)
-
-        # find contours in the binary image
-        contours, hierarchy = cv2.findContours(thresh,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
-
-        allCentroids = []
-        centroids = []
-        for c in contours:
-            # calculate moments for each contour
-            M = cv2.moments(c)
-
-            # calculate x,y coordinate of center
-            
-            if M["m00"] != 0:
-                cX = int(M["m10"] / M["m00"])
-                cY = int(M["m01"] / M["m00"])
-                
-                check = False
-                if len(allCentroids) > 0:
-                    for existingCentroid in allCentroids:
-                        if abs(existingCentroid[0] - cX) < 50 and abs(existingCentroid[1] - cY) < 50:
-                            check = True
-
-                if check == False:
-                    cv2.circle(aprilTags, (cX, cY), 5, (255, 0, 255), -1)
-                    positionString = str(cX) + "," + str(cY)
-                    cv2.putText(aprilTags, positionString, (cX - 25, cY - 25),cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 255), 2)
-                    centroids.append([cX,cY])
-                allCentroids.append([cX,cY])
-        
-        # display the image
-        if len(centroids) == 2:
-            image = cv2.line(aprilTags, centroids[0], centroids[1], (255,0,0), 2)
-            pixelDistance = (abs(centroids[0][0] - centroids[1][0])**2 + abs(centroids[0][1] - centroids[1][1])**2)**(1/2)
-            cv2.putText(aprilTags, f"Distance = {pixelDistance:.2f} pixels", (200,430),cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 255), 2)
-            midpoint = [(centroids[0][0] + centroids[1][0])/2, (centroids[0][1] + centroids[1][1])/2]
-            cv2.circle(aprilTags, (int(midpoint[0]), int(midpoint[1])), 5, (0, 255, 0), -1)
-        cv2.imshow("apriltags", aprilTags)
-
-        # print(global_poses)
-        # print(global_poses['end_effector_joint'][0][0])
-
-
+        camToHandleDist, handlePoint = get_dist_and_midpoint(image)
 
         if self.rove:
             # self.pose["bravo_axis_g"] += self.inc
@@ -141,8 +126,6 @@ class User:
                 self.inc = 0.08
             
             self.pose["bravo_axis_d"] += self.inc
-
-
 
         #center
         if cv2.waitKey(1) == ord('q'):
@@ -164,7 +147,4 @@ class User:
         if cv2.waitKey(1) == ord('z'):
             self.pose = calcIK(np.array([global_poses['end_effector_joint'][0][0], global_poses['end_effector_joint'][0][1], global_poses['end_effector_joint'][0][2]-0.05]), np.array([0, 1, 0, 1]))
 
-        
-
-        print(global_poses)
         return self.pose
