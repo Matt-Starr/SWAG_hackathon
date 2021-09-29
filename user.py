@@ -68,6 +68,29 @@ def get_dist_and_midpoint(image):
 
     return pixelDistance, midpoint
 
+def user_defined_inputs(globalPoses, calcIK):
+    newPose = -1
+    #center
+    if cv2.waitKey(1) == ord('q'):
+        newPose = calcIK(np.array([0.5, 0, 0]), np.array([0, 1, 0, 1]))
+        
+    #move on x-y
+    if cv2.waitKey(1) == ord('w'):
+        newPose = calcIK(np.array([globalPoses['end_effector_joint'][0][0]+0.05, globalPoses['end_effector_joint'][0][1], globalPoses['end_effector_joint'][0][2]]), np.array([0, 1, 0, 1]))
+    if cv2.waitKey(1) == ord('a'):
+        newPose = calcIK(np.array([globalPoses['end_effector_joint'][0][0], globalPoses['end_effector_joint'][0][1]+0.05, globalPoses['end_effector_joint'][0][2]]), np.array([0, 1, 0, 1]))
+    if cv2.waitKey(1) == ord('s'):
+        newPose = calcIK(np.array([globalPoses['end_effector_joint'][0][0]-0.05, globalPoses['end_effector_joint'][0][1], globalPoses['end_effector_joint'][0][2]]), np.array([0, 1, 0, 1]))
+    if cv2.waitKey(1) == ord('d'):
+        newPose = calcIK(np.array([globalPoses['end_effector_joint'][0][0], globalPoses['end_effector_joint'][0][1]-0.05, globalPoses['end_effector_joint'][0][2]]), np.array([0, 1, 0, 1]))
+    
+    #move on z
+    if cv2.waitKey(1) == ord('x'):
+        newPose = calcIK(np.array([globalPoses['end_effector_joint'][0][0], globalPoses['end_effector_joint'][0][1], globalPoses['end_effector_joint'][0][2]+0.05]), np.array([0, 1, 0, 1]))
+    if cv2.waitKey(1) == ord('z'):
+        newPose = calcIK(np.array([globalPoses['end_effector_joint'][0][0], globalPoses['end_effector_joint'][0][1], globalPoses['end_effector_joint'][0][2]-0.05]), np.array([0, 1, 0, 1]))
+
+    return newPose
 
 class User:
     def __init__(self) -> None:
@@ -82,7 +105,7 @@ class User:
         }
         self.inc = 0.08
         self.last_time = time.time()
-        self.rove = True
+        self.rove = False
 
         return
 
@@ -127,24 +150,9 @@ class User:
             
             self.pose["bravo_axis_d"] += self.inc
 
-        #center
-        if cv2.waitKey(1) == ord('q'):
-            self.pose = calcIK(np.array([0.5, 0, 0]), np.array([0, 1, 0, 1]))
-            
-        #move on x-y
-        if cv2.waitKey(1) == ord('w'):
-            self.pose = calcIK(np.array([global_poses['end_effector_joint'][0][0]+0.05, global_poses['end_effector_joint'][0][1], global_poses['end_effector_joint'][0][2]]), np.array([0, 1, 0, 1]))
-        if cv2.waitKey(1) == ord('a'):
-            self.pose = calcIK(np.array([global_poses['end_effector_joint'][0][0], global_poses['end_effector_joint'][0][1]+0.05, global_poses['end_effector_joint'][0][2]]), np.array([0, 1, 0, 1]))
-        if cv2.waitKey(1) == ord('s'):
-            self.pose = calcIK(np.array([global_poses['end_effector_joint'][0][0]-0.05, global_poses['end_effector_joint'][0][1], global_poses['end_effector_joint'][0][2]]), np.array([0, 1, 0, 1]))
-        if cv2.waitKey(1) == ord('d'):
-            self.pose = calcIK(np.array([global_poses['end_effector_joint'][0][0], global_poses['end_effector_joint'][0][1]-0.05, global_poses['end_effector_joint'][0][2]]), np.array([0, 1, 0, 1]))
+        # Getting inputs for manual control
+        userDefPose = user_defined_inputs(global_poses, calcIK)
+        if userDefPose != -1:
+            self.pose = userDefPose
         
-        #move on z
-        if cv2.waitKey(1) == ord('x'):
-            self.pose = calcIK(np.array([global_poses['end_effector_joint'][0][0], global_poses['end_effector_joint'][0][1], global_poses['end_effector_joint'][0][2]+0.05]), np.array([0, 1, 0, 1]))
-        if cv2.waitKey(1) == ord('z'):
-            self.pose = calcIK(np.array([global_poses['end_effector_joint'][0][0], global_poses['end_effector_joint'][0][1], global_poses['end_effector_joint'][0][2]-0.05]), np.array([0, 1, 0, 1]))
-
         return self.pose
