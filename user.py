@@ -5,7 +5,7 @@ import math
 from typing import Callable, Optional
 import numpy as np
 import cv2
-from numpy.lib.type_check import imag
+from numpy.lib.type_check import imag, mintypecode
 
 def get_dist_and_midpoint(image):
     # define boundaries for the colours we are masking (we want to mask black but should be close to white as we are inverting it)
@@ -46,15 +46,18 @@ def get_dist_and_midpoint(image):
                     if abs(existingCentroid[0] - cX) < 50 and abs(existingCentroid[1] - cY) < 50:
                         check = True
 
-            # If we dont find a similarly place centroid add the new centroid to the list and display
+            # If we dont find a similarly place centroid add the new centroid to the list 
             if check == False:
-                cv2.circle(aprilTags, (cX, cY), 5, (255, 0, 255), -1)
-                positionString = str(cX) + "," + str(cY)
-                cv2.putText(aprilTags, positionString, (cX - 25, cY - 25),cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 255), 2)
                 centroids.append([cX,cY])
-    
+
+    # Display centroids
+    for i in centroids:
+        cv2.circle(aprilTags, (i[0], i[1]), 5, (255, 0, 255), -1)
+        positionString = str(i[0]) + "," + str(i[1])
+        cv2.putText(aprilTags, positionString, (i[0] - 25, i[1] - 25),cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 255), 2)
+
     # Initialise values for these incase we can't determine a line, a negative output should be interpreted as a failure
-    pixelDistance = -1
+    calcDistance = -1
     midpoint = -1
 
     # Calculate distance between centroids in terms of pixels and find the coordinates of the midpoint
@@ -62,11 +65,21 @@ def get_dist_and_midpoint(image):
         image = cv2.line(aprilTags, centroids[0], centroids[1], (255,0,0), 2)
         pixelDistance = (abs(centroids[0][0] - centroids[1][0])**2 + abs(centroids[0][1] - centroids[1][1])**2)**(1/2)
         cv2.putText(aprilTags, f"Distance = {pixelDistance:.2f} pixels", (200,430),cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 255), 2)
+
         midpoint = [(centroids[0][0] + centroids[1][0])/2, (centroids[0][1] + centroids[1][1])/2]
         cv2.circle(aprilTags, (int(midpoint[0]), int(midpoint[1])), 5, (0, 255, 0), -1)
+        midpointString = str(int(midpoint[0])) + "," + str(int(midpoint[1]))
+        cv2.putText(aprilTags, midpointString, (int(midpoint[0]) - 25, int(midpoint[1]) + 25),cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+
+        refPixels = 221.94
+        measuredDist = 0.375
+        realWidth = 0.272
+        focalLen = (refPixels*measuredDist)/realWidth
+        calcDistance = (realWidth*focalLen)/pixelDistance
+        cv2.putText(aprilTags, f"Calculation = {calcDistance*100:.2f} mm", (200,400),cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
     cv2.imshow("apriltags", aprilTags)
 
-    return pixelDistance, midpoint
+    return calcDistance, midpoint
 
 def user_defined_inputs(globalPoses, calcIK):
     newPose = -1
@@ -98,10 +111,10 @@ class User:
             "bravo_axis_a": math.pi * 0, # max is around 0.25*math.pi
             "bravo_axis_b": 0,
             "bravo_axis_c": math.pi * 0.25,
-            "bravo_axis_d": math.pi * 1,
+            "bravo_axis_d": math.pi * 0,
             "bravo_axis_e": math.pi * 1,
             "bravo_axis_f": math.pi * 1,
-            "bravo_axis_g": math.pi
+            "bravo_axis_g": math.pi 
         }
         self.inc = 0.08
         self.last_time = time.time()
@@ -109,36 +122,24 @@ class User:
 
         return
 
-
     def run(self,
             image: list, 
             global_poses: Dict[str, np.ndarray],
             calcIK: Callable[[np.ndarray, Optional[np.ndarray]], Dict[str, float]],
             ) -> Dict[str, float]:
-        """Run loop to control the Bravo manipulator.
-
-        Parameters
-        ----------
-        image: list
-            The latest camera image frame.
-
-        global_poses: Dict[str, np.ndarray]
-            A dictionary with the global camera and end-effector pose. The keys are
-            'camera_end_joint' and 'end_effector_joint'. Each pose consitst of a (3x1)
-            position (vec3) and (4x1) quaternion defining the orientation.
-        
-        calcIK: function, (pos: np.ndarray, orient: np.ndarray = None) -> Dict[str, float]
-            Function to calculate inverse kinematics. Provide a desired end-effector
-            position (vec3) and an orientation (quaternion) and it will return a pose
-            dictionary of joint angles to approximate the pose.
-        """
         
         cv2.imshow("View", image)
         #Image is 480 (height), by 640 (width)
         cv2.waitKey(1)
 
         camToHandleDist, handlePoint = get_dist_and_midpoint(image)
+        #seems to be in range from about 0.41m to 0.35m
 
+        # xdist = global_poses["end_effector_joint"][0][0]
+        # ydist = global_poses["end_effector_joint"][0][1]
+        # zdist = global_poses["end_effector_joint"][0][2]
+
+        # print(f"{xdist}, {ydist}, {zdist}")
         if self.rove:
             # self.pose["bravo_axis_g"] += self.inc
             # if (self.pose["bravo_axis_g"] >= 2 * math.pi):
@@ -154,5 +155,6 @@ class User:
         userDefPose = user_defined_inputs(global_poses, calcIK)
         if userDefPose != -1:
             self.pose = userDefPose
+        print(time.time())
         
         return self.pose
