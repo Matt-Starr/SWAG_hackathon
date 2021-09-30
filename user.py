@@ -25,6 +25,8 @@ class User:
         self.mode = 0    #0 is rove mode, 1 is get close mode, 2 is latch mode
         self.is_level = False
         self.time = time.time()
+        self.midpoint = [[], []]
+        self.follow_dir = 1
 
         return
 
@@ -127,18 +129,42 @@ class User:
         return newPose
 
     def rove(self):
-        # self.pose["bravo_axis_g"] += self.inc
-        # if (self.pose["bravo_axis_g"] >= 2 * math.pi):
-        #     self.pose["bravo_axis_g"] -= 4 * math.pi
-        if self.pose["bravo_axis_d"] > 0.5*math.pi:
-            self.inc = -0.08
-        elif self.pose["bravo_axis_d"] < -0.5*math.pi:
-            self.inc = 0.08
+        if abs(self.inc) != 0.07:
+            self.inc = 0.07
+    
+        if self.pose["bravo_axis_g"] > 1.5*math.pi:
+            self.inc = -0.07
+        elif self.pose["bravo_axis_g"] < 0.5*math.pi:
+            self.inc = 0.07
         
-        self.pose["bravo_axis_d"] += self.inc
+        self.pose["bravo_axis_g"] += self.inc
 
+
+    def get_close_check(self):
+        # print("follow check")
+        if (self.midpoint[0] == -1):
+            self.mode = 0
+        
+        self.mode = 1
+    
+    
     def get_close(self):
-        pass
+        if (self.midpoint[0] == -1):
+            self.mode = 0
+            return
+
+        midY = self.midpoint[0][1]
+        midImage, error = 220, 10
+
+        if midY < midImage - error:
+            self.inc = -0.015
+        elif midY > midImage + error:
+            self.inc = 0.015
+        else:
+            self.inc = 0
+        
+        self.pose["bravo_axis_g"] += (self.inc * self.follow_dir)
+
 
     def latch(self):
         pass
@@ -154,10 +180,16 @@ class User:
         cv2.waitKey(1)
 
         #print(image.shape())
+        if self.midpoint[0] == -1:
+            self.midpoint[1] = -1
+        else:
+            self.midpoint[1] = list(self.midpoint[0])
 
-        camToHandleDist, handlePoint = self.get_dist_and_midpoint(image)
+        camToHandleDist, self.midpoint[0] = self.get_dist_and_midpoint(image)
 
         # If in rove mode
+        self.get_close_check()
+
         if self.mode == 0:
             self.rove()
         elif self.mode == 1:
