@@ -151,7 +151,10 @@ class User:
     def rove(self):
         self.rove_pos_revert()
         if abs(self.inc) != 0.07:
-            self.inc = 0.07
+            if self.inc < 0:
+                self.inc = -0.07
+            else:
+                self.inc = 0.07
 
         if self.pose["bravo_axis_g"] > 1.5*math.pi:
             self.inc = -0.07
@@ -160,7 +163,7 @@ class User:
 
         self.pose["bravo_axis_g"] += self.inc
 
-    def follow_and_move_in(self, midpoint, camToHandleDist, global_poses, calcIK):
+    def follow_and_move_in(self, midpoint, camToHandleDist, global_poses, calcIK, lone_centroid):
         midY = midpoint[1]
         midImage, error = 220, 10
 
@@ -173,7 +176,12 @@ class User:
 
         self.pose["bravo_axis_g"] += (self.inc * self.follow_dir)
 
-        self.move_close( camToHandleDist, global_poses, calcIK)
+        if lone_centroid:
+            if midY > 280 or midY < 180:
+                self.move_close(0.5, global_poses, calcIK)
+        else:
+            self.move_close(camToHandleDist, global_poses, calcIK)
+
 
     def move_close(self, camToHandleDist, global_poses, calcIK):
         new_pose = calcIK(self.targetingsystem(global_poses['camera_end_joint'][0],  global_poses['camera_end_joint'][1], camToHandleDist),
