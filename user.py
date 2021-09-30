@@ -7,8 +7,6 @@ import numpy as np
 import cv2
 from numpy.lib.type_check import imag, mintypecode
 
-
-
 class User:
     def __init__(self) -> None:
         self.pose = {
@@ -25,8 +23,6 @@ class User:
         self.mode = 0    #0 is rove mode, 1 is get close mode, 2 is latch mode
         self.is_level = False
         self.time = time.time()
-        self.midpoint = [[], []]
-        self.follow_dir = 1
 
         return
 
@@ -102,7 +98,7 @@ class User:
             cv2.putText(aprilTags, f"Calculation = {calcDistance*100:.2f} mm", (200,420),cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
         cv2.imshow("apriltags", aprilTags)
 
-        return calcDistance, midpoint
+        return calcDistance/10, midpoint
 
     def user_defined_inputs(self, globalPoses, calcIK):
         newPose = -1
@@ -129,42 +125,18 @@ class User:
         return newPose
 
     def rove(self):
-        if abs(self.inc) != 0.07:
-            self.inc = 0.07
-    
-        if self.pose["bravo_axis_g"] > 1.5*math.pi:
-            self.inc = -0.07
-        elif self.pose["bravo_axis_g"] < 0.5*math.pi:
-            self.inc = 0.07
+        # self.pose["bravo_axis_g"] += self.inc
+        # if (self.pose["bravo_axis_g"] >= 2 * math.pi):
+        #     self.pose["bravo_axis_g"] -= 4 * math.pi
+        if self.pose["bravo_axis_d"] > 0.5*math.pi:
+            self.inc = -0.08
+        elif self.pose["bravo_axis_d"] < -0.5*math.pi:
+            self.inc = 0.08
         
-        self.pose["bravo_axis_g"] += self.inc
+        self.pose["bravo_axis_d"] += self.inc
 
-
-    def get_close_check(self):
-        # print("follow check")
-        if (self.midpoint[0] == -1):
-            self.mode = 0
-        
-        self.mode = 1
-    
-    
     def get_close(self):
-        if (self.midpoint[0] == -1):
-            self.mode = 0
-            return
-
-        midY = self.midpoint[0][1]
-        midImage, error = 220, 10
-
-        if midY < midImage - error:
-            self.inc = -0.015
-        elif midY > midImage + error:
-            self.inc = 0.015
-        else:
-            self.inc = 0
-        
-        self.pose["bravo_axis_g"] += (self.inc * self.follow_dir)
-
+        pass
 
     def latch(self):
         pass
@@ -180,21 +152,27 @@ class User:
         cv2.waitKey(1)
 
         #print(image.shape())
-        if self.midpoint[0] == -1:
-            self.midpoint[1] = -1
-        else:
-            self.midpoint[1] = list(self.midpoint[0])
 
-        camToHandleDist, self.midpoint[0] = self.get_dist_and_midpoint(image)
+        camToHandleDist, handlePoint = self.get_dist_and_midpoint(image)
+
+        #Check conditions to determine right mode
+        self.mode = 0
+        if handlePoint != -1:
+            print(camToHandleDist)
+            if camToHandleDist > 0.07:
+                self.mode = 1
+            else:
+                self.mode = 2
 
         # If in rove mode
-        self.get_close_check()
-
         if self.mode == 0:
+            print('0')
             self.rove()
         elif self.mode == 1:
+            print('1')
             self.get_close()
-        if self.mode == 2:
+        elif self.mode == 2:
+            print('2')
             self.latch()
 
 
@@ -202,6 +180,6 @@ class User:
         userDefPose = self.user_defined_inputs(global_poses, calcIK)
         if userDefPose != -1:
             self.pose = userDefPose
-        print(f"{time.time()- self.time:.2f}")
+        #print(f"{time.time() - self.time:.2f}")
         
         return self.pose
