@@ -108,8 +108,6 @@ class User:
             loneCentroid = True
         cv2.imshow("apriltags", aprilTags)
 
-        
-
         return calcDistance/10, midpoint, pixelDistance, loneCentroid
 
     def user_defined_inputs(self, globalPoses, calcIK):
@@ -138,13 +136,13 @@ class User:
 
     def rove_pos_revert(self):
         self.pose = {
-            "bravo_axis_a": math.pi * 0, # max is around 0.25*math.pi
-            "bravo_axis_b": 0, # claw swivel
-            "bravo_axis_c": math.pi * 0.25, #thrird elbow
-            "bravo_axis_d": math.pi * 0, # wrist swivel
-            "bravo_axis_e": math.pi * 0.9, #second elbow
-            "bravo_axis_f": math.pi * 1, # first elbow
-            "bravo_axis_g": self.pose["bravo_axis_g"] # base rotation
+            "bravo_axis_a": math.pi * 0,                    # Max is around 0.25*math.pi
+            "bravo_axis_b": 0,                              # Claw swivel
+            "bravo_axis_c": math.pi * 0.25,                 # Thrird elbow
+            "bravo_axis_d": math.pi * 0,                    # Wrist swivel
+            "bravo_axis_e": math.pi * 0.9,                  # Second elbow
+            "bravo_axis_f": math.pi * 1,                    # First elbow
+            "bravo_axis_g": self.pose["bravo_axis_g"]       # Base rotation
         }
 
 
@@ -167,16 +165,13 @@ class User:
         xDistOffset = (xPixelOffset / self.lastPixelWidth)*self.real_april_dist
         yDistOffset = (yPixelOffset / self.lastPixelWidth)*self.real_april_dist
 
-
         newXLoc = globalPoses['end_effector_joint'][0][0]-xDistOffset
         newYLoc = globalPoses['end_effector_joint'][0][1]+yDistOffset
         newZLoc = globalPoses['end_effector_joint'][0][2]+0.1
-
         
         newPose = calcIK(np.array([newXLoc, newYLoc, newZLoc]), np.array([0, 1, 0, 1]))
         newPose["bravo_axis_d"] = math.pi * -0.15
         self.pose = newPose
-
 
     def latch(self, calcIK, globalPoses, midpoint, handleDistance, aprilPixelWidth):
         # Pixel width is the length between the two april tags in pixels
@@ -201,12 +196,9 @@ class User:
             global_poses: Dict[str, np.ndarray],
             calcIK: Callable[[np.ndarray, Optional[np.ndarray]], Dict[str, float]],
             ) -> Dict[str, float]:
-        
-        cv2.imshow("View", image)
-        #Image is 480 (height), by 640 (width)
-        cv2.waitKey(1)
 
-        #print(image.shape())
+        cv2.imshow("View", image) #Image is 480 (height), by 640 (width)
+        cv2.waitKey(1)
 
         camToHandleDist, handlePoint, pixelWidth, loneCentroid = self.get_dist_and_midpoint(image)
 
@@ -234,6 +226,7 @@ class User:
         userDefPose = self.user_defined_inputs(global_poses, calcIK)
         if userDefPose != -1:
             self.pose = userDefPose
+
         #print(f"{time.time() - self.time:.2f}")
         
         return self.pose
