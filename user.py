@@ -83,6 +83,7 @@ class User:
         calcDistance = -1
         midpoint = -1
         pixelDistance = -1
+        loneCentroid = False
 
         # Calculate distance between centroids in terms of pixels and find the coordinates of the midpoint
         if len(centroids) == 2:
@@ -101,9 +102,14 @@ class User:
             focalLen = (refPixels*measuredDist)/realWidth
             calcDistance = (realWidth*focalLen)/pixelDistance
             cv2.putText(aprilTags, f"Calculation = {calcDistance*100:.2f} mm", (200,420),cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
+        elif len(centroids) == 1:
+            midpoint = centroids[0]
+            loneCentroid = True
         cv2.imshow("apriltags", aprilTags)
 
-        return calcDistance/10, midpoint, pixelDistance
+        
+
+        return calcDistance/10, midpoint, pixelDistance, loneCentroid
 
     def user_defined_inputs(self, globalPoses, calcIK):
         newPose = -1
@@ -153,7 +159,7 @@ class User:
 
         self.pose["bravo_axis_g"] += self.inc
 
-    def follow_y_axis_g(self, midpoint):
+    def follow_and_move_in(self, midpoint, camToHandleDist, global_poses, calcIK):
         midY = midpoint[1]
         midImage, error = 220, 10
 
@@ -166,18 +172,18 @@ class User:
 
         self.pose["bravo_axis_g"] += (self.inc * self.follow_dir)
 
-    def move_close(self, camToHandleDist, global_poses: Dict[str, np.ndarray],
-            calcIK: Callable[[np.ndarray, Optional[np.ndarray]], Dict[str, float]],
-            ) -> Dict[str, float]:
-            new_pose = calcIK(self.targetingsystem(global_poses['camera_end_joint'][0],  global_poses['camera_end_joint'][1], camToHandleDist),
-                        global_poses['camera_end_joint'][1])
+        self.move_close( camToHandleDist, global_poses, calcIK)
 
-            self.pose["bravo_axis_a"] = new_pose["bravo_axis_a"]
-            self.pose["bravo_axis_b"] = new_pose["bravo_axis_b"]
-            self.pose["bravo_axis_c"] = new_pose["bravo_axis_c"]
-            self.pose["bravo_axis_d"] = new_pose["bravo_axis_d"]
-            self.pose["bravo_axis_e"] = new_pose["bravo_axis_e"]
-            self.pose["bravo_axis_f"] = new_pose["bravo_axis_f"]
+    def move_close(self, camToHandleDist, global_poses, calcIK):
+        new_pose = calcIK(self.targetingsystem(global_poses['camera_end_joint'][0],  global_poses['camera_end_joint'][1], camToHandleDist),
+                    global_poses['camera_end_joint'][1])
+
+        self.pose["bravo_axis_a"] = new_pose["bravo_axis_a"]
+        self.pose["bravo_axis_b"] = new_pose["bravo_axis_b"]
+        self.pose["bravo_axis_c"] = new_pose["bravo_axis_c"]
+        self.pose["bravo_axis_d"] = new_pose["bravo_axis_d"]
+        self.pose["bravo_axis_e"] = new_pose["bravo_axis_e"]
+        self.pose["bravo_axis_f"] = new_pose["bravo_axis_f"]
 
 
     def targetingsystem(self, claw_position, claw_orientation, distancetofinish):
@@ -223,7 +229,7 @@ class User:
 
         #print(image.shape())
 
-        camToHandleDist, handlePoint, pixelWidth = self.get_dist_and_midpoint(image)
+        camToHandleDist, handlePoint, pixelWidth, loneCentroid = self.get_dist_and_midpoint(image)
 
         #Check conditions to determine right mode
         self.mode = 0
@@ -233,14 +239,14 @@ class User:
             else:
                 self.mode = 2
 
+
         # If in rove mode
         if self.mode == 0:
             print('0')
             self.rove()
         elif self.mode == 1:
             print('1')
-            self.follow_y_axis_g(handlePoint)
-            self.move_close(camToHandleDist, global_poses, calcIK)
+            self.follow_and_move_in(handlePoint, camToHandleDist, global_poses, calcIK)
         elif self.mode == 2:
             print('2')
             self.latch(calcIK, global_poses,  handlePoint, camToHandleDist, pixelWidth)
