@@ -68,6 +68,17 @@ def get_dist_and_midpoint(image):
 
     return pixelDistance, midpoint
 
+def targetingsystem(claw_position, claw_orientation, distancetofinish):
+        #a = cos θ/2, b = ux sin θ/2, c = uy sin θ/2 and d = uz sin θ/2 (Euler-Rodrigues-Hamilton)
+        theta = 2*np.arccos(claw_orientation[2])
+        sinhalftheta = np.sin(theta/2)
+        v = np.array(claw_position[0]+(claw_orientation[0]/sinhalftheta)*distancetofinish,
+        claw_position[1]+(claw_orientation[1]/sinhalftheta)*distancetofinish,
+        claw_position[2]+(claw_orientation[3]/sinhalftheta)*distancetofinish
+        )
+
+        return v
+
 def user_defined_inputs(globalPoses, calcIK):
     newPose = -1
     #center
