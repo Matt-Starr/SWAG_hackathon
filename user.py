@@ -125,7 +125,21 @@ class User:
 
         return newPose
 
+    def rove_pos_revert(self):
+        self.pose = {
+            "bravo_axis_a": math.pi * 0, # max is around 0.25*math.pi
+            "bravo_axis_b": 0,
+            "bravo_axis_c": math.pi * 0.25,
+            "bravo_axis_d": math.pi * 0,
+            "bravo_axis_e": math.pi * 1,
+            "bravo_axis_f": math.pi * 1,
+            "bravo_axis_g": self.pose["bravo_axis_g"]
+        }
+
+
     def rove(self):
+        self.rove_pos_revert()
+
         if abs(self.inc) != 0.07:
             self.inc = 0.07
 
