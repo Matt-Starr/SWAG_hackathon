@@ -18,12 +18,24 @@ class User:
             "bravo_axis_f": math.pi * 1,
             "bravo_axis_g": math.pi
         }
+        self.startPose = {
+            "bravo_axis_a": math.pi * 0, # max is around 0.25*math.pi
+            "bravo_axis_b": 0,
+            "bravo_axis_c": math.pi * 0.25,
+            "bravo_axis_d": math.pi * 0,
+            "bravo_axis_e": math.pi * 1,
+            "bravo_axis_f": math.pi * 1,
+            "bravo_axis_g": math.pi
+        }
         self.inc = 0.08
         self.last_time = time.time()
         self.mode = 0    #0 is rove mode, 1 is get close mode, 2 is latch mode
         self.is_level = False
         self.time = time.time()
         self.follow_dir = 1
+        self.reference_midpoint = [300, 200]
+        self.reference_distance = 0.038
+        self.real_april_dist = 0.272
 
         return
 
@@ -79,6 +91,7 @@ class User:
         # Initialise values for these incase we can't determine a line, a negative output should be interpreted as a failure
         calcDistance = -1
         midpoint = -1
+        pixelDistance = -1
 
         # Calculate distance between centroids in terms of pixels and find the coordinates of the midpoint
         if len(centroids) == 2:
@@ -99,7 +112,7 @@ class User:
             cv2.putText(aprilTags, f"Calculation = {calcDistance*100:.2f} mm", (200,420),cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
         cv2.imshow("apriltags", aprilTags)
 
-        return calcDistance/10, midpoint
+        return calcDistance/10, midpoint, pixelDistance
 
     def user_defined_inputs(self, globalPoses, calcIK):
         newPose = -1
@@ -125,21 +138,8 @@ class User:
 
         return newPose
 
-    def rove_pos_revert(self):
-        self.pose = {
-            "bravo_axis_a": math.pi * 0, # max is around 0.25*math.pi
-            "bravo_axis_b": 0,
-            "bravo_axis_c": math.pi * 0.25,
-            "bravo_axis_d": math.pi * 0,
-            "bravo_axis_e": math.pi * 1,
-            "bravo_axis_f": math.pi * 1,
-            "bravo_axis_g": self.pose["bravo_axis_g"]
-        }
-
-
     def rove(self):
-        self.rove_pos_revert()
-
+        self.pose = self.startPose
         if abs(self.inc) != 0.07:
             self.inc = 0.07
 
@@ -151,7 +151,6 @@ class User:
         self.pose["bravo_axis_g"] += self.inc
 
     def get_close(self, midpoint):
-
         midY = midpoint[1]
         midImage, error = 220, 10
 
@@ -164,33 +163,25 @@ class User:
 
         self.pose["bravo_axis_g"] += (self.inc * self.follow_dir)
 
-    def move_close(self, camToHandleDist, global_poses: Dict[str, np.ndarray],
-            calcIK: Callable[[np.ndarray, Optional[np.ndarray]], Dict[str, float]],
-            ) -> Dict[str, float]:
-            new_pose = calcIK(self.targetingsystem(global_poses['camera_end_joint'][0],  global_poses['camera_end_joint'][1], camToHandleDist),
-                        global_poses['camera_end_joint'][1])
-            
-            self.pose["bravo_axis_a"] = new_pose["bravo_axis_a"]
-            self.pose["bravo_axis_b"] = new_pose["bravo_axis_b"]
-            self.pose["bravo_axis_c"] = new_pose["bravo_axis_c"]
-            self.pose["bravo_axis_d"] = new_pose["bravo_axis_d"]
-            self.pose["bravo_axis_e"] = new_pose["bravo_axis_e"]
-            self.pose["bravo_axis_f"] = new_pose["bravo_axis_f"]
+    def latch(self, calcIK, globalPoses, midpoint, handleDistance, aprilPixelWidth):
+        # Pixel width is the length between the two april tags in pixels
+        xPixelOffset = self.reference_midpoint[0] - midpoint[0]
+        yPixelOffset = self.reference_midpoint[1] - midpoint[1]
 
+        xDistOffset = (xPixelOffset / aprilPixelWidth)*self.real_april_dist
+        yDistOffset = (yPixelOffset / aprilPixelWidth)*self.real_april_dist
+        zDistOffset = self.reference_distance - handleDistance
 
-    def targetingsystem(self, claw_position, claw_orientation, distancetofinish):
-        #a = cos θ/2, b = ux sin θ/2, c = uy sin θ/2 and d = uz sin θ/2 (Euler-Rodrigues-Hamilton)
-        theta = 2*np.arccos(claw_orientation[2])
-        sinhalftheta = np.sin(theta/2)
-        v = np.array([claw_position[0]+(claw_orientation[0]/sinhalftheta)*distancetofinish,
-        claw_position[1]+(claw_orientation[1]/sinhalftheta)*distancetofinish,
-        claw_position[2]+(claw_orientation[3]/sinhalftheta)*distancetofinish]
-        )
+        print(xDistOffset, yDistOffset, zDistOffset)
 
-        return v
-    
-    def latch(self):
-        pass
+        newXLoc = globalPoses['end_effector_joint'][0][0]+xDistOffset
+        newYLoc = globalPoses['end_effector_joint'][0][1]+yDistOffset
+        newZLoc = globalPoses['end_effector_joint'][0][2]+zDistOffset
+
+        print(newXLoc, newYLoc, newZLoc)
+
+        newPose = calcIK(np.array([newXLoc, newYLoc, newZLoc]), np.array([0, 1, 0, 1]))
+        self.pose = newPose
 
     def run(self,
             image: list, 
@@ -204,12 +195,11 @@ class User:
 
         #print(image.shape())
 
-        camToHandleDist, handlePoint = self.get_dist_and_midpoint(image)
+        camToHandleDist, handlePoint, pixelWidth = self.get_dist_and_midpoint(image)
 
         #Check conditions to determine right mode
         self.mode = 0
         if handlePoint != -1:
-            print(camToHandleDist)
             if camToHandleDist > 0.07:
                 self.mode = 1
             else:
@@ -222,10 +212,9 @@ class User:
         elif self.mode == 1:
             print('1')
             self.get_close(handlePoint)
-            self.move_close(camToHandleDist, global_poses, calcIK)
         elif self.mode == 2:
             print('2')
-            self.latch()
+            self.latch(calcIK, global_poses,  handlePoint, camToHandleDist, pixelWidth)
 
 
         # Getting inputs for manual control
