@@ -16,9 +16,9 @@ class User:
             "bravo_axis_d": math.pi * 0,
             "bravo_axis_e": math.pi * 1,
             "bravo_axis_f": math.pi * 1,
-            "bravo_axis_g": math.pi
+            "bravo_axis_g": math.pi * 0.5
         }
-        self.inc = 0.08
+        self.inc = -0.07
         self.last_time = time.time()
         self.mode = 0    #0 is rove mode, 1 is get close mode, 2 is latch mode
         self.is_level = False
@@ -27,6 +27,7 @@ class User:
         self.reference_midpoint = [300, 200]
         self.reference_distance = 0.038
         self.real_april_dist = 0.272
+        self.lastPixelWidth = 50
 
         return
 
@@ -137,13 +138,13 @@ class User:
 
     def rove_pos_revert(self):
         self.pose = {
-            "bravo_axis_a": math.pi * 0, # max is around 0.25*math.pi
-            "bravo_axis_b": 0,
-            "bravo_axis_c": math.pi * 0.25,
-            "bravo_axis_d": math.pi * 0,
-            "bravo_axis_e": math.pi * 1,
-            "bravo_axis_f": math.pi * 1,
-            "bravo_axis_g": self.pose["bravo_axis_g"]
+            "bravo_axis_a": math.pi * 0.75, # max is around 0.25*math.pi
+            "bravo_axis_b": 0, # claw swivel
+            "bravo_axis_c": math.pi * 0.15, #thrird elbow
+            "bravo_axis_d": math.pi * 0, # wrist swivel
+            "bravo_axis_e": math.pi * 0.8, #second elbow
+            "bravo_axis_f": math.pi * 0.8, # first elbow
+            "bravo_axis_g": self.pose["bravo_axis_g"] # base rotation
         }
 
 
@@ -197,6 +198,22 @@ class User:
 
         return v
 
+    def center_centroid(self, calcIK, globalPoses, midpoint):
+        xPixelOffset = self.reference_midpoint[0] - midpoint[0]
+        yPixelOffset = self.reference_midpoint[1] - midpoint[1]
+
+        xDistOffset = (xPixelOffset / self.lastPixelWidth)*self.real_april_dist
+        yDistOffset = (yPixelOffset / self.lastPixelWidth)*self.real_april_dist
+
+
+        newXLoc = globalPoses['end_effector_joint'][0][0]-xDistOffset
+        newYLoc = globalPoses['end_effector_joint'][0][1]+yDistOffset
+        newZLoc = globalPoses['end_effector_joint'][0][2]+0.1
+
+        newPose = calcIK(np.array([newXLoc, newYLoc, newZLoc]), np.array([0, 1, 0, 1]))
+        self.pose = newPose
+
+
     def latch(self, calcIK, globalPoses, midpoint, handleDistance, aprilPixelWidth):
         # Pixel width is the length between the two april tags in pixels
         xPixelOffset = self.reference_midpoint[0] - midpoint[0]
@@ -206,16 +223,14 @@ class User:
         yDistOffset = (yPixelOffset / aprilPixelWidth)*self.real_april_dist
         zDistOffset = self.reference_distance - handleDistance
 
-        print(xDistOffset, yDistOffset, zDistOffset)
-
-        newXLoc = globalPoses['end_effector_joint'][0][0]+xDistOffset
+        newXLoc = globalPoses['end_effector_joint'][0][0]-xDistOffset
         newYLoc = globalPoses['end_effector_joint'][0][1]+yDistOffset
         newZLoc = globalPoses['end_effector_joint'][0][2]+zDistOffset
 
-        print(newXLoc, newYLoc, newZLoc)
-
         newPose = calcIK(np.array([newXLoc, newYLoc, newZLoc]), np.array([0, 1, 0, 1]))
         self.pose = newPose
+
+        self.lastPixelWidth = aprilPixelWidth
 
     def run(self,
             image: list, 
@@ -234,23 +249,23 @@ class User:
         #Check conditions to determine right mode
         self.mode = 0
         if handlePoint != -1:
-            if camToHandleDist > 0.07:
+            if camToHandleDist > 0.9 or loneCentroid:
                 self.mode = 1
             else:
                 self.mode = 2
 
-
         # If in rove mode
         if self.mode == 0:
-            print('0')
             self.rove()
         elif self.mode == 1:
-            print('1')
-            self.follow_and_move_in(handlePoint, camToHandleDist, global_poses, calcIK)
+            self.center_centroid(calcIK, global_poses,  handlePoint)
+            #self.follow_and_move_in(handlePoint, camToHandleDist, global_poses, calcIK)
         elif self.mode == 2:
-            print('2')
             self.latch(calcIK, global_poses,  handlePoint, camToHandleDist, pixelWidth)
-
+            if camToHandleDist < 0.045:
+                self.pose["bravo_axis_a"] = math.pi * 0
+            else:
+                self.pose["bravo_axis_a"] = math.pi * 0.75
 
         # Getting inputs for manual control
         userDefPose = self.user_defined_inputs(global_poses, calcIK)
