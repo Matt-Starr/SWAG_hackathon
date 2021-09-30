@@ -167,17 +167,24 @@ class User:
     def move_close(self, camToHandleDist, global_poses: Dict[str, np.ndarray],
             calcIK: Callable[[np.ndarray, Optional[np.ndarray]], Dict[str, float]],
             ) -> Dict[str, float]:
-            self.pose = calcIK(self.targetingsystem(global_poses['camera_end_joint'][0],  global_poses['camera_end_joint'][1], camToHandleDist),
+            new_pose = calcIK(self.targetingsystem(global_poses['camera_end_joint'][0],  global_poses['camera_end_joint'][1], camToHandleDist),
                         global_poses['camera_end_joint'][1])
+            
+            self.pose["bravo_axis_a"] = new_pose["bravo_axis_a"]
+            self.pose["bravo_axis_b"] = new_pose["bravo_axis_b"]
+            self.pose["bravo_axis_c"] = new_pose["bravo_axis_c"]
+            self.pose["bravo_axis_d"] = new_pose["bravo_axis_d"]
+            self.pose["bravo_axis_e"] = new_pose["bravo_axis_e"]
+            self.pose["bravo_axis_f"] = new_pose["bravo_axis_f"]
 
 
     def targetingsystem(self, claw_position, claw_orientation, distancetofinish):
         #a = cos θ/2, b = ux sin θ/2, c = uy sin θ/2 and d = uz sin θ/2 (Euler-Rodrigues-Hamilton)
         theta = 2*np.arccos(claw_orientation[2])
         sinhalftheta = np.sin(theta/2)
-        v = np.array(claw_position[0]+(claw_orientation[0]/sinhalftheta)*distancetofinish,
+        v = np.array([claw_position[0]+(claw_orientation[0]/sinhalftheta)*distancetofinish,
         claw_position[1]+(claw_orientation[1]/sinhalftheta)*distancetofinish,
-        claw_position[2]+(claw_orientation[3]/sinhalftheta)*distancetofinish
+        claw_position[2]+(claw_orientation[3]/sinhalftheta)*distancetofinish]
         )
 
         return v
