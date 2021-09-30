@@ -138,73 +138,27 @@ class User:
 
     def rove_pos_revert(self):
         self.pose = {
-            "bravo_axis_a": math.pi * 0.75, # max is around 0.25*math.pi
+            "bravo_axis_a": math.pi * 0, # max is around 0.25*math.pi
             "bravo_axis_b": 0, # claw swivel
-            "bravo_axis_c": math.pi * 0.15, #thrird elbow
+            "bravo_axis_c": math.pi * 0.25, #thrird elbow
             "bravo_axis_d": math.pi * 0, # wrist swivel
-            "bravo_axis_e": math.pi * 0.8, #second elbow
-            "bravo_axis_f": math.pi * 0.8, # first elbow
+            "bravo_axis_e": math.pi * 0.9, #second elbow
+            "bravo_axis_f": math.pi * 1, # first elbow
             "bravo_axis_g": self.pose["bravo_axis_g"] # base rotation
         }
 
 
     def rove(self):
         self.rove_pos_revert()
-        if abs(self.inc) != 0.07:
-            if self.inc < 0:
-                self.inc = -0.07
-            else:
-                self.inc = 0.07
+        if abs(self.inc) != 0.08:
+            self.inc = 0.08
 
         if self.pose["bravo_axis_g"] > 1.5*math.pi:
-            self.inc = -0.07
-        elif self.pose["bravo_axis_g"] < 0.5*math.pi:
-            self.inc = 0.07
+            self.inc = -0.08
+        elif self.pose["bravo_axis_g"] < 0*math.pi:
+            self.inc = 0.08
 
         self.pose["bravo_axis_g"] += self.inc
-
-    def follow_and_move_in(self, midpoint, camToHandleDist, global_poses, calcIK, lone_centroid):
-        midY = midpoint[1]
-        midImage, error = 220, 10
-
-        if midY < midImage - error:
-            self.inc = -0.015
-        elif midY > midImage + error:
-            self.inc = 0.015
-        else:
-            self.inc = 0
-
-        self.pose["bravo_axis_g"] += (self.inc * self.follow_dir)
-
-        if lone_centroid:
-            if midY > 280 or midY < 180:
-                self.move_close(0.5, global_poses, calcIK)
-        else:
-            self.move_close(camToHandleDist, global_poses, calcIK)
-
-
-    def move_close(self, camToHandleDist, global_poses, calcIK):
-        new_pose = calcIK(self.targetingsystem(global_poses['camera_end_joint'][0],  global_poses['camera_end_joint'][1], camToHandleDist),
-                    global_poses['camera_end_joint'][1])
-
-        self.pose["bravo_axis_a"] = new_pose["bravo_axis_a"]
-        self.pose["bravo_axis_b"] = new_pose["bravo_axis_b"]
-        self.pose["bravo_axis_c"] = new_pose["bravo_axis_c"]
-        self.pose["bravo_axis_d"] = new_pose["bravo_axis_d"]
-        self.pose["bravo_axis_e"] = new_pose["bravo_axis_e"]
-        self.pose["bravo_axis_f"] = new_pose["bravo_axis_f"]
-
-
-    def targetingsystem(self, claw_position, claw_orientation, distancetofinish):
-        #a = cos θ/2, b = ux sin θ/2, c = uy sin θ/2 and d = uz sin θ/2 (Euler-Rodrigues-Hamilton)
-        theta = 2*np.arccos(claw_orientation[2])
-        sinhalftheta = np.sin(theta/2)
-        v = np.array([claw_position[0]+(claw_orientation[0]/sinhalftheta)*distancetofinish,
-        claw_position[1]+(claw_orientation[1]/sinhalftheta)*distancetofinish,
-        claw_position[2]+(claw_orientation[3]/sinhalftheta)*distancetofinish]
-        )
-
-        return v
 
     def center_centroid(self, calcIK, globalPoses, midpoint):
         xPixelOffset = self.reference_midpoint[0] - midpoint[0]
@@ -218,7 +172,9 @@ class User:
         newYLoc = globalPoses['end_effector_joint'][0][1]+yDistOffset
         newZLoc = globalPoses['end_effector_joint'][0][2]+0.1
 
+        
         newPose = calcIK(np.array([newXLoc, newYLoc, newZLoc]), np.array([0, 1, 0, 1]))
+        newPose["bravo_axis_d"] = math.pi * -0.15
         self.pose = newPose
 
 
@@ -257,7 +213,7 @@ class User:
         #Check conditions to determine right mode
         self.mode = 0
         if handlePoint != -1:
-            if camToHandleDist > 0.9 or loneCentroid:
+            if camToHandleDist > 10 or loneCentroid:
                 self.mode = 1
             else:
                 self.mode = 2
@@ -267,7 +223,6 @@ class User:
             self.rove()
         elif self.mode == 1:
             self.center_centroid(calcIK, global_poses,  handlePoint)
-            #self.follow_and_move_in(handlePoint, camToHandleDist, global_poses, calcIK)
         elif self.mode == 2:
             self.latch(calcIK, global_poses,  handlePoint, camToHandleDist, pixelWidth)
             if camToHandleDist < 0.045:
