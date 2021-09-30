@@ -23,6 +23,7 @@ class User:
         self.mode = 0    #0 is rove mode, 1 is get close mode, 2 is latch mode
         self.is_level = False
         self.time = time.time()
+        self.follow_dir = 1
 
         return
 
@@ -125,18 +126,29 @@ class User:
         return newPose
 
     def rove(self):
-        # self.pose["bravo_axis_g"] += self.inc
-        # if (self.pose["bravo_axis_g"] >= 2 * math.pi):
-        #     self.pose["bravo_axis_g"] -= 4 * math.pi
-        if self.pose["bravo_axis_d"] > 0.5*math.pi:
-            self.inc = -0.08
-        elif self.pose["bravo_axis_d"] < -0.5*math.pi:
-            self.inc = 0.08
-        
-        self.pose["bravo_axis_d"] += self.inc
+        if abs(self.inc) != 0.07:
+            self.inc = 0.07
 
-    def get_close(self):
-        pass
+        if self.pose["bravo_axis_g"] > 1.5*math.pi:
+            self.inc = -0.07
+        elif self.pose["bravo_axis_g"] < 0.5*math.pi:
+            self.inc = 0.07
+
+        self.pose["bravo_axis_g"] += self.inc
+
+    def get_close(self, midpoint):
+
+        midY = midpoint[1]
+        midImage, error = 220, 10
+
+        if midY < midImage - error:
+            self.inc = -0.015
+        elif midY > midImage + error:
+            self.inc = 0.015
+        else:
+            self.inc = 0
+
+        self.pose["bravo_axis_g"] += (self.inc * self.follow_dir)
 
     def latch(self):
         pass
@@ -170,7 +182,7 @@ class User:
             self.rove()
         elif self.mode == 1:
             print('1')
-            self.get_close()
+            self.get_close(handlePoint)
         elif self.mode == 2:
             print('2')
             self.latch()
