@@ -20,25 +20,25 @@ class User:
         }
         self.inc = -0.07
         self.last_time = time.time()
-        self.mode = 0    #0 is rove mode, 1 is get close mode, 2 is latch mode
+        self.mode = 0    # 0 is rove mode, 1 is get close mode, 2 is latch mode
         self.is_level = False
-        self.time = time.time()
+        self.start_time = time.time()
         self.follow_dir = 1
         self.reference_midpoint = [300, 200]
-        self.reference_distance = 0.038
+        self.reference_distance = 0.035
         self.real_april_dist = 0.272
         self.lastPixelWidth = 50
 
         return
 
     def get_dist_and_midpoint(self, camFeed):
-        # define boundaries for the colours we are masking (we want to mask black but should be close to white as we are inverting it)
+        # Define boundaries for the colours we are masking (we want to mask black but should be close to white as we are inverting it)
         lower = [230,230,230]
         upper = [255,255,255]
         lower = np.array(lower, dtype = "uint8")
         upper = np.array(upper, dtype = "uint8")
 
-        # invert the image and cover up the bottom which contains the timer
+        # Invert the image and cover up the bottom which contains the timer
         inverted = cv2.bitwise_not(camFeed, camFeed)
         cv2.rectangle(inverted,(0,450),(650,480),(255,0,255),thickness=-1)
 
@@ -46,14 +46,14 @@ class User:
         mask = cv2.inRange(camFeed, lower, upper)
         aprilTags = cv2.bitwise_and(inverted, inverted, mask = mask)
         
-        # convert the image to binary image (via grayscale) and find contours in the binary image
+        # Convert the image to binary image (via grayscale) and find contours in the binary image
         gray_image = cv2.cvtColor(aprilTags, cv2.COLOR_BGR2GRAY)
         ret,thresh = cv2.threshold(gray_image,127,255,0)
         contours, hierarchy = cv2.findContours(thresh,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
 
-        # initialise lists of centroids to display
+        # Initialise lists of centroids to display
         centroids = []
-
+        
         for c in contours:
             # Calculate moments for each contour
             M = cv2.moments(c)
@@ -81,6 +81,7 @@ class User:
             cv2.putText(aprilTags, positionString, (i[0] - 25, i[1] - 25),cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 255), 2)
 
         # Initialise values for these incase we can't determine a line, a negative output should be interpreted as a failure
+        # Tag for if we only see one centroid is also declared here
         calcDistance = -1
         midpoint = -1
         pixelDistance = -1
@@ -106,17 +107,17 @@ class User:
         elif len(centroids) == 1:
             midpoint = centroids[0]
             loneCentroid = True
-        cv2.imshow("apriltags", aprilTags)
+        cv2.imshow("Movement Calculations Reference", aprilTags)
 
         return calcDistance/10, midpoint, pixelDistance, loneCentroid
 
     def user_defined_inputs(self, globalPoses, calcIK):
         newPose = -1
-        #center
+        # Center
         if cv2.waitKey(1) == ord('q'):
             newPose = calcIK(np.array([0.5, 0, 0]), np.array([0, 1, 0, 1]))
         
-        #move on x-y
+        # Move on x-y
         if cv2.waitKey(1) == ord('w'):
             newPose = calcIK(np.array([globalPoses['end_effector_joint'][0][0]+0.05, globalPoses['end_effector_joint'][0][1], globalPoses['end_effector_joint'][0][2]]), np.array([0, 1, 0, 1]))
         if cv2.waitKey(1) == ord('a'):
@@ -126,7 +127,7 @@ class User:
         if cv2.waitKey(1) == ord('d'):
             newPose = calcIK(np.array([globalPoses['end_effector_joint'][0][0], globalPoses['end_effector_joint'][0][1]-0.05, globalPoses['end_effector_joint'][0][2]]), np.array([0, 1, 0, 1]))
         
-        #move on z
+        # Move on z
         if cv2.waitKey(1) == ord('x'):
             newPose = calcIK(np.array([globalPoses['end_effector_joint'][0][0], globalPoses['end_effector_joint'][0][1], globalPoses['end_effector_joint'][0][2]+0.05]), np.array([0, 1, 0, 1]))
         if cv2.waitKey(1) == ord('z'):
@@ -136,7 +137,7 @@ class User:
 
     def rove_pos_revert(self):
         self.pose = {
-            "bravo_axis_a": math.pi * 0,                    # Max is around 0.25*math.pi
+            "bravo_axis_a": math.pi * 0,                    # Claw, max is around 0.25*math.pi
             "bravo_axis_b": 0,                              # Claw swivel
             "bravo_axis_c": math.pi * 0.25,                 # Thrird elbow
             "bravo_axis_d": math.pi * 0,                    # Wrist swivel
@@ -144,7 +145,6 @@ class User:
             "bravo_axis_f": math.pi * 1,                    # First elbow
             "bravo_axis_g": self.pose["bravo_axis_g"]       # Base rotation
         }
-
 
     def rove(self):
         self.rove_pos_revert()
@@ -186,6 +186,8 @@ class User:
         newYLoc = globalPoses['end_effector_joint'][0][1]+yDistOffset
         newZLoc = globalPoses['end_effector_joint'][0][2]+zDistOffset
 
+        # print(xDistOffset,yDistOffset,zDistOffset)
+
         newPose = calcIK(np.array([newXLoc, newYLoc, newZLoc]), np.array([0, 1, 0, 1]))
         self.pose = newPose
 
@@ -197,15 +199,15 @@ class User:
             calcIK: Callable[[np.ndarray, Optional[np.ndarray]], Dict[str, float]],
             ) -> Dict[str, float]:
 
-        cv2.imshow("View", image) #Image is 480 (height), by 640 (width)
+        cv2.imshow("View", image)   # Image is 480 (height), by 640 (width)
         cv2.waitKey(1)
 
         camToHandleDist, handlePoint, pixelWidth, loneCentroid = self.get_dist_and_midpoint(image)
 
-        #Check conditions to determine right mode
+        # Check conditions to determine right mode
         self.mode = 0
         if handlePoint != -1:
-            if camToHandleDist > 10 or loneCentroid:
+            if loneCentroid:
                 self.mode = 1
             else:
                 self.mode = 2
@@ -222,11 +224,9 @@ class User:
             else:
                 self.pose["bravo_axis_a"] = math.pi * 0.75
 
-        # Getting inputs for manual control
+        # Getting inputs for manual overide
         userDefPose = self.user_defined_inputs(global_poses, calcIK)
         if userDefPose != -1:
             self.pose = userDefPose
 
-        #print(f"{time.time() - self.time:.2f}")
-        
         return self.pose

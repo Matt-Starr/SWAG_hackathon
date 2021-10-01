@@ -2,4 +2,3 @@ pybullet
 numpy
 opencv-python
 scipy
-dt-apriltags
