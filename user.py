@@ -1,14 +1,16 @@
-""" User code lives here """
-import time
-from typing import Dict
-import math
-from typing import Callable, Optional
+from typing import Callable, Optional, Dict
 import numpy as np
 import cv2
-from numpy.lib.type_check import imag, mintypecode
+from scipy.spatial.transform import Rotation as R
+from pupil_apriltags import Detector
+
+import time
+import math
+
+from transforms import Transforms
 
 class User:
-    def __init__(self) -> None:
+    def __init__ (self):
         self.pose = {
             "bravo_axis_a": math.pi * 0, # max is around 0.25*math.pi
             "bravo_axis_b": 0,
@@ -111,33 +113,33 @@ class User:
 
         return calcDistance/10, midpoint, pixelDistance, loneCentroid
 
-    def user_defined_inputs(self, globalPoses, calcIK):
+    def user_defined_inputs(self, globalPoses, send_pose_command):
         newPose = -1
         # Center
         if cv2.waitKey(1) == ord('q'):
-            newPose = calcIK(np.array([0.5, 0, 0]), np.array([0, 1, 0, 1]))
+            send_pose_command(np.array([50, 0, 0]), np.array([0, 1, 0, 1]))
         
         # Move on x-y
         if cv2.waitKey(1) == ord('w'):
-            newPose = calcIK(np.array([globalPoses['end_effector_joint'][0][0]+0.05, globalPoses['end_effector_joint'][0][1], globalPoses['end_effector_joint'][0][2]]), np.array([0, 1, 0, 1]))
+            send_pose_command(np.array([globalPoses['end_effector_joint'][0][0]+0.05, globalPoses['end_effector_joint'][0][1], globalPoses['end_effector_joint'][0][2]]), np.array([0, 1, 0, 1]))
         if cv2.waitKey(1) == ord('a'):
-            newPose = calcIK(np.array([globalPoses['end_effector_joint'][0][0], globalPoses['end_effector_joint'][0][1]+0.05, globalPoses['end_effector_joint'][0][2]]), np.array([0, 1, 0, 1]))
+            send_pose_command(np.array([globalPoses['end_effector_joint'][0][0], globalPoses['end_effector_joint'][0][1]+0.05, globalPoses['end_effector_joint'][0][2]]), np.array([0, 1, 0, 1]))
         if cv2.waitKey(1) == ord('s'):
-            newPose = calcIK(np.array([globalPoses['end_effector_joint'][0][0]-0.05, globalPoses['end_effector_joint'][0][1], globalPoses['end_effector_joint'][0][2]]), np.array([0, 1, 0, 1]))
+            send_pose_command(np.array([globalPoses['end_effector_joint'][0][0]-0.05, globalPoses['end_effector_joint'][0][1], globalPoses['end_effector_joint'][0][2]]), np.array([0, 1, 0, 1]))
         if cv2.waitKey(1) == ord('d'):
-            newPose = calcIK(np.array([globalPoses['end_effector_joint'][0][0], globalPoses['end_effector_joint'][0][1]-0.05, globalPoses['end_effector_joint'][0][2]]), np.array([0, 1, 0, 1]))
+            send_pose_command(np.array([globalPoses['end_effector_joint'][0][0], globalPoses['end_effector_joint'][0][1]-0.05, globalPoses['end_effector_joint'][0][2]]), np.array([0, 1, 0, 1]))
         
         # Move on z
         if cv2.waitKey(1) == ord('x'):
-            newPose = calcIK(np.array([globalPoses['end_effector_joint'][0][0], globalPoses['end_effector_joint'][0][1], globalPoses['end_effector_joint'][0][2]+0.05]), np.array([0, 1, 0, 1]))
+            send_pose_command(np.array([globalPoses['end_effector_joint'][0][0], globalPoses['end_effector_joint'][0][1], globalPoses['end_effector_joint'][0][2]+0.05]), np.array([0, 1, 0, 1]))
         if cv2.waitKey(1) == ord('z'):
-            newPose = calcIK(np.array([globalPoses['end_effector_joint'][0][0], globalPoses['end_effector_joint'][0][1], globalPoses['end_effector_joint'][0][2]-0.05]), np.array([0, 1, 0, 1]))
+            send_pose_command(np.array([globalPoses['end_effector_joint'][0][0], globalPoses['end_effector_joint'][0][1], globalPoses['end_effector_joint'][0][2]-0.05]), np.array([0, 1, 0, 1]))
 
         return newPose
 
     def rove_pos_revert(self):
         self.pose = {
-            "bravo_axis_a": math.pi * 0,                    # Claw, max is around 0.25*math.pi
+            "bravo_axis_a": math.pi * 0,                    # Claw,max is around 0.25*math.pi
             "bravo_axis_b": 0,                              # Claw swivel
             "bravo_axis_c": math.pi * 0.25,                 # Thrird elbow
             "bravo_axis_d": math.pi * 0,                    # Wrist swivel
@@ -158,7 +160,7 @@ class User:
 
         self.pose["bravo_axis_g"] += self.inc
 
-    def center_centroid(self, calcIK, globalPoses, midpoint):
+    def center_centroid(self, send_pose_command, globalPoses, midpoint):
         xPixelOffset = self.reference_midpoint[0] - midpoint[0]
         yPixelOffset = self.reference_midpoint[1] - midpoint[1]
 
@@ -169,11 +171,11 @@ class User:
         newYLoc = globalPoses['end_effector_joint'][0][1]+yDistOffset
         newZLoc = globalPoses['end_effector_joint'][0][2]+0.1
         
-        newPose = calcIK(np.array([newXLoc, newYLoc, newZLoc]), np.array([0, 1, 0, 1]))
-        newPose["bravo_axis_d"] = math.pi * -0.15
-        self.pose = newPose
+        send_pose_command(np.array([newXLoc, newYLoc, newZLoc]), np.array([0, 1, 0, 1]))
+        #newPose["bravo_axis_d"] = math.pi * -0.15
+        #self.pose = newPose
 
-    def latch(self, calcIK, globalPoses, midpoint, handleDistance, aprilPixelWidth):
+    def latch(self, send_pose_command, globalPoses, midpoint, handleDistance, aprilPixelWidth):
         # Pixel width is the length between the two april tags in pixels
         xPixelOffset = self.reference_midpoint[0] - midpoint[0]
         yPixelOffset = self.reference_midpoint[1] - midpoint[1]
@@ -188,45 +190,98 @@ class User:
 
         # print(xDistOffset,yDistOffset,zDistOffset)
 
-        newPose = calcIK(np.array([newXLoc, newYLoc, newZLoc]), np.array([0, 1, 0, 1]))
-        self.pose = newPose
+        send_pose_command(np.array([newXLoc, newYLoc, newZLoc]), np.array([0, 1, 0, 1]))
+        #self.pose = newPose
 
         self.lastPixelWidth = aprilPixelWidth
 
     def run(self,
-            image: list, 
+            image: np.ndarray, 
             global_poses: Dict[str, np.ndarray],
-            calcIK: Callable[[np.ndarray, Optional[np.ndarray]], Dict[str, float]],
-            ) -> Dict[str, float]:
-
+            send_pose_command: Callable[[np.ndarray, Optional[np.ndarray]], None],
+            send_jaw_cmd: Callable[[float], None]
+        ):
+        # send_pose_command(np.array([50, 0, 0]), np.array([0, 1, 0, 1]))
+        send_pose_command([588, 0, 300])
+        # print(global_poses)
         cv2.imshow("View", image)   # Image is 480 (height), by 640 (width)
         cv2.waitKey(1)
 
-        camToHandleDist, handlePoint, pixelWidth, loneCentroid = self.get_dist_and_midpoint(image)
+        # at_detector = Detector(
+        #     families="tag36h11",
+        #     nthreads=1,
+        #     quad_decimate=2.0,
+        #     quad_sigma=0.8,
 
-        # Check conditions to determine right mode
-        self.mode = 0
-        if handlePoint != -1:
-            if loneCentroid:
-                self.mode = 1
-            else:
-                self.mode = 2
+        # )
 
-        # If in rove mode
-        if self.mode == 0:
-            self.rove()
-        elif self.mode == 1:
-            self.center_centroid(calcIK, global_poses,  handlePoint)
-        elif self.mode == 2:
-            self.latch(calcIK, global_poses,  handlePoint, camToHandleDist, pixelWidth)
-            if camToHandleDist < 0.045:
-                self.pose["bravo_axis_a"] = math.pi * 0
-            else:
-                self.pose["bravo_axis_a"] = math.pi * 0.75
+        # camToHandleDist, handlePoint, pixelWidth, loneCentroid = self.get_dist_and_midpoint(image)
 
-        # Getting inputs for manual overide
-        userDefPose = self.user_defined_inputs(global_poses, calcIK)
-        if userDefPose != -1:
-            self.pose = userDefPose
+        # # Check conditions to determine right mode
+        # self.mode = 0
+        # if handlePoint != -1:
+        #     if loneCentroid:
+        #         self.mode = 1
+        #     else:
+        #         self.mode = 2
+
+        # # If in rove mode
+        # if self.mode == 0:
+        #     self.rove()
+        # elif self.mode == 1:
+        #     self.center_centroid(send_pose_command, global_poses,  handlePoint)
+        # elif self.mode == 2:
+        #     self.latch(send_pose_command, global_poses,  handlePoint, camToHandleDist, pixelWidth)
+        #     if camToHandleDist < 0.045:
+        #         self.pose["bravo_axis_a"] = math.pi * 0
+        #     else:
+        #         self.pose["bravo_axis_a"] = math.pi * 0.75
+
+        # # Getting inputs for manual overide
+        # userDefPose = self.user_defined_inputs(global_poses, send_pose_command)
+        # if userDefPose != -1:
+        #     self.pose = userDefPose
 
         return self.pose
+        """Run loop to control the Bravo manipulator.
+
+        Parameters
+        ----------
+        image: np.ndarray
+            The latest camera image frame. Colour order is RGB.
+
+        global_poses: Dict[str, np.ndarray]
+            A dictionary with the global camera and end-effector pose. The keys are
+            'camera_end_joint' and 'end_effector_joint'. Each pose consists of a 3x1
+            position (x, y, z) in mm and a 4x1 quaternion (x, y, z, w) defining the 
+            orientation.
+        
+        send_pose_command: function, (pos: np.ndarray, orient: np.ndarray = None)
+            Function to send command to the Bravo to move the end-effector to the given
+            position (x, y, z) in mm and quaternion orientation (x, y, z, w) in the global
+            reference frame. If orientation argument is not provided, the end-effector
+            will try to do pure translation.
+
+        send_jaw_cmd: function, (pos: float)
+            Function to send command to the Bravo to close or open the jaws by the distance
+            given as a single float in mm, where 0 is fully closed.
+        """
+
+        # Flood your terminal with end-effector and camera pose data
+        # print(f"END-EFFECTOR:\n     position: {global_poses['end_effector_joint'][0]}" 
+        #                  + f"\n  orientation: {global_poses['end_effector_joint'][1]}")
+        # print(f"WRIST CAMERA:\n     position: {global_poses['camera_end_joint'][0]}" 
+        #                  + f"\n  orientation: {global_poses['camera_end_joint'][1]}")
+
+        # Send a global pose command to the Bravo
+        # send_pose_command([450, -320,  127], [0, 0, 0, 1])
+        
+        # Send jaw command to Bravo
+        # send_jaw_cmd(30)
+
+        # Preview camera stream
+        # bgrFrame = cv2.cvtColor(image, cv2.COLOR_RGB2BGR) # needs BGR to preview correctly
+        # cv2.imshow("Camera Stream", bgrFrame)
+        # cv2.waitKey(1)
+
+        pass
