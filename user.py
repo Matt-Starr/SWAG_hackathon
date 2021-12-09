@@ -231,10 +231,14 @@ class User:
             camera_params=None,
             tag_size=None
         )
-        # print(tags)
+        print(tags)
         
         if tags:
-            cv2.circle(image, (int(tags[0].center[0]), int(tags[0].center[1])), 10, (0, 255, 0), -1)
+            for tag in tags:
+                if (tag.tag_id == 0):
+                    cv2.circle(image, (int(tag.center[0]), int(tag.center[1])), 10, (0, 255, 0), -1)
+                else:
+                    cv2.circle(image, (int(tag.center[0]), int(tag.center[1])), 10, (255, 0, 0), -1)
             # print(tags[0].tag_id)
 
         cv2.imshow("View", image)   # Image is 480 (height), by 640 (width)
