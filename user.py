@@ -2,12 +2,9 @@ from typing import Callable, Optional, Dict
 import numpy as np
 import cv2
 from scipy.spatial.transform import Rotation as R
-from pupil_apriltags import Detector
 
 import time
 import math
-
-from transforms import Transforms
 
 class User:
     def __init__ (self):
@@ -30,12 +27,13 @@ class User:
         self.reference_distance = 0.035
         self.real_april_dist = 0.272
         self.lastPixelWidth = 50
+        self.clawOpenWidth = 15
 
         return
 
     def get_dist_and_midpoint(self, camFeed):
         # Define boundaries for the colours we are masking (we want to mask black but should be close to white as we are inverting it)
-        lower = [230,230,230]
+        lower = [200,200,200]
         upper = [255,255,255]
         lower = np.array(lower, dtype = "uint8")
         upper = np.array(upper, dtype = "uint8")
@@ -148,17 +146,23 @@ class User:
             "bravo_axis_g": self.pose["bravo_axis_g"]       # Base rotation
         }
 
-    def rove(self):
-        self.rove_pos_revert()
+    def rove(self, send_pose_command, globalPoses):
+        #send_pose_command([400, 0, 0], [0,1,0,1])
+        #send_pose_command([500, 0, 0])
+        #self.rove_pos_revert()
         if abs(self.inc) != 0.08:
             self.inc = 0.08
 
-        if self.pose["bravo_axis_g"] > 1.5*math.pi:
+        if self.pose["bravo_axis_g"] > 0.75*math.pi:
             self.inc = -0.08
-        elif self.pose["bravo_axis_g"] < 0*math.pi:
+        elif self.pose["bravo_axis_g"] < 0.25*math.pi:
             self.inc = 0.08
 
         self.pose["bravo_axis_g"] += self.inc
+
+        send_pose_command([math.sin(self.pose["bravo_axis_g"])*500, math.cos(self.pose["bravo_axis_g"])*500, 0])
+        
+        #send_pose_command([math.sin(math.pi * self.inc + globalPoses[0]), math.cos(math.pi * self.inc + globalPoses[1]), 100])
 
     def center_centroid(self, send_pose_command, globalPoses, midpoint):
         xPixelOffset = self.reference_midpoint[0] - midpoint[0]
@@ -201,48 +205,48 @@ class User:
             send_pose_command: Callable[[np.ndarray, Optional[np.ndarray]], None],
             send_jaw_cmd: Callable[[float], None]
         ):
-        # send_pose_command(np.array([50, 0, 0]), np.array([0, 1, 0, 1]))
-        send_pose_command([588, 0, 300])
-        # print(global_poses)
+    
+        #send_pose_command(np.array([50, 0, 0]), np.array([0, 1, 0, 1]))
+        #send_pose_command([400, -10, 60], [0, 1, 0, 1])
+        #print(global_poses)
+        send_jaw_cmd(15)
+        #print("hey")
+        #cv2.resize(image, (480, 640), interpolation= cv2.INTER_LINEAR)
         cv2.imshow("View", image)   # Image is 480 (height), by 640 (width)
         cv2.waitKey(1)
 
-        # at_detector = Detector(
-        #     families="tag36h11",
-        #     nthreads=1,
-        #     quad_decimate=2.0,
-        #     quad_sigma=0.8,
+        
+        camToHandleDist, handlePoint, pixelWidth, loneCentroid = self.get_dist_and_midpoint(image)
 
-        # )
+        # Check conditions to determine right mode
 
-        # camToHandleDist, handlePoint, pixelWidth, loneCentroid = self.get_dist_and_midpoint(image)
+        self.mode = 0
+        self.mode = 0
+        if handlePoint != -1:
+            if loneCentroid:
+                self.mode = 1
+            else:
+                self.mode = 2
 
-        # # Check conditions to determine right mode
-        # self.mode = 0
-        # if handlePoint != -1:
-        #     if loneCentroid:
-        #         self.mode = 1
-        #     else:
-        #         self.mode = 2
+        # If in rove mode
+        if self.mode == 0:
+            self.rove(send_pose_command, global_poses)
+        elif self.mode == 1:
+            self.center_centroid(send_pose_command, global_poses,  handlePoint)
+        elif self.mode == 2:
+            self.latch(send_pose_command, global_poses,  handlePoint, camToHandleDist, pixelWidth)
+            if camToHandleDist < 0.045:
+                send_jaw_cmd(0)
+            else:
+                send_jaw_cmd(self.clawOpenWidth)
 
-        # # If in rove mode
-        # if self.mode == 0:
-        #     self.rove()
-        # elif self.mode == 1:
-        #     self.center_centroid(send_pose_command, global_poses,  handlePoint)
-        # elif self.mode == 2:
-        #     self.latch(send_pose_command, global_poses,  handlePoint, camToHandleDist, pixelWidth)
-        #     if camToHandleDist < 0.045:
-        #         self.pose["bravo_axis_a"] = math.pi * 0
-        #     else:
-        #         self.pose["bravo_axis_a"] = math.pi * 0.75
-
-        # # Getting inputs for manual overide
-        # userDefPose = self.user_defined_inputs(global_poses, send_pose_command)
-        # if userDefPose != -1:
-        #     self.pose = userDefPose
+        # Getting inputs for manual overide
+        userDefPose = self.user_defined_inputs(global_poses, send_pose_command)
+        if userDefPose != -1:
+            self.pose = userDefPose
 
         return self.pose
+
         """Run loop to control the Bravo manipulator.
 
         Parameters

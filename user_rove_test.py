@@ -160,7 +160,7 @@ class User:
 
         self.pose["bravo_axis_g"] += self.inc
 
-        send_pose_command([math.sin(self.pose["bravo_axis_g"])*500, math.cos(self.pose["bravo_axis_g"]*500), 0])
+        send_pose_command([math.sin(self.pose["bravo_axis_g"])*500, math.cos(self.pose["bravo_axis_g"])*500, 0])
         
         #send_pose_command([math.sin(math.pi * self.inc + globalPoses[0]), math.cos(math.pi * self.inc + globalPoses[1]), 100])
 
