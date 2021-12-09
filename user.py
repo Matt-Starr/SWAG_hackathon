@@ -2,6 +2,7 @@ from typing import Callable, Optional, Dict
 import numpy as np
 import cv2
 from scipy.spatial.transform import Rotation as R
+from pupil_apriltags import Detector
 
 import time
 import math
@@ -212,6 +213,30 @@ class User:
         send_jaw_cmd(15)
         #print("hey")
         #cv2.resize(image, (480, 640), interpolation= cv2.INTER_LINEAR)
+
+        im_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+        at_detector = Detector(
+            families="tag36h11",
+            nthreads=1,
+            quad_decimate=1.5,
+            quad_sigma=1,
+            refine_edges=1,
+            decode_sharpening=0.25,
+            debug=0
+        )
+        tags = at_detector.detect(
+            img=im_gray,
+            estimate_tag_pose=False,
+            camera_params=None,
+            tag_size=None
+        )
+        # print(tags)
+        
+        if tags:
+            cv2.circle(image, (int(tags[0].center[0]), int(tags[0].center[1])), 10, (0, 255, 0), -1)
+            # print(tags[0].tag_id)
+
         cv2.imshow("View", image)   # Image is 480 (height), by 640 (width)
         cv2.waitKey(1)
 
